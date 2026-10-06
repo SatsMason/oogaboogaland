@@ -56,16 +56,32 @@
         k.headEmissive = { [ember]: 1, [emberDk]: 0.7 };
       },
       gear(k) {
-        const rock = k.color("#292a27"), dark = k.color("#171815"), ember = k.color("#ff7a18");
+        const rock = k.color("#292a27"), dark = k.color("#171815"), ember = k.color("#ff7a18"), moss = k.color("#56613b");
         const arm = BL.models.makeVox();
+        // Oversized, broken-rock forearms and fists. Missing corner cells keep the silhouette craggy.
         arm.fill(-2, 4, 0, 11, -2, 4, k.jit(rock, dark, 0.3));
-        for (const [x,y,z] of [[0,9,4],[1,8,4],[-1,6,4],[2,5,4],[0,3,4]]) arm.set(x,y,z,ember);
-        const geo = k.vg(arm, { x: -1.5 * k.u, y: -11 * k.u, z: -1.5 * k.u }, { [ember]: 0.85 });
+        for (const [x,y,z] of [[-2,11,-2],[4,11,4],[-2,8,4],[4,6,-2],[-2,2,-2],[4,1,4]]) arm.del(x,y,z);
+        arm.fill(-3, 5, 0, 2, -3, 5, k.jit(rock, dark, 0.34));
+        for (const [x,y,z] of [[0,10,4],[1,9,4],[-1,7,4],[2,6,4],[1,5,4],[0,3,4],[-1,2,4]]) arm.set(x,y,z,ember);
+        for (const [x,y,z] of [[-2,10,2],[3,8,3],[-1,4,-2]]) arm.set(x,y,z,moss);
+        const geo = k.vg(arm, { x: -1.5 * k.u, y: -11 * k.u, z: -1.5 * k.u }, { [ember]: 0.95 });
         k.parts.armR.geometry = k.parts.armL.geometry = geo;
+
+        // Rebuild the legs in the same volcanic material so no flesh palette remains.
+        const leg = BL.models.makeVox();
+        leg.fill(-1, 4, 0, 6, -1, 4, k.jit(rock, dark, 0.3));
+        leg.fill(-2, 5, 0, 1, -2, 6, k.jit(rock, dark, 0.34));
+        for (const [x,y,z] of [[1,6,4],[2,5,4],[0,4,4],[3,3,4],[2,2,5],[1,1,6]]) leg.set(x,y,z,ember);
+        for (const [x,y,z] of [[-1,5,2],[4,2,1]]) leg.set(x,y,z,moss);
+        const legGeo = k.vg(leg, { x: -1.5 * k.u, y: -5 * k.u, z: -2.5 * k.u }, { [ember]: 0.9 });
+        k.parts.legR.geometry = k.parts.legL.geometry = legGeo;
       },
       skull(k, v) {
-        const rock = k.color("#292a27"), dark = k.color("#151613"), beard = k.color("#1a1a17");
+        const rock = k.color("#292a27"), dark = k.color("#151613"), beard = k.color("#1a1a17"), ember = k.color("#ff7a18"), moss = k.color("#56613b");
         v.fill(-1, 7, 0, 6, -1, 6, k.jit(rock, dark, 0.32));
+        for (const [x,y,z] of [[-1,6,1],[7,5,0],[0,1,-1],[6,0,1]]) v.del(x,y,z);
+        for (const [x,y,z] of [[0,5,5],[1,4,5],[6,5,4],[5,1,5]]) v.set(x,y,z,ember);
+        v.set(-1,5,2,moss); v.set(7,4,1,moss);
         v.fill(0, 6, -3, 1, 4, 7, k.jit(beard, dark, 0.25));
         v.fill(1, 5, -5, -4, 5, 7, k.jit(beard, dark, 0.3));
         v.set(0,-5,6,beard); v.set(6,-5,6,beard); v.set(3,-6,6,beard);
