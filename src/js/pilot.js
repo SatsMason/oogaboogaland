@@ -1172,7 +1172,7 @@
       }
     };
     const aimKey = (e) => {
-      if (externalControl || e.metaKey || e.ctrlKey || e.altKey || e.target.closest && e.target.closest("input, textarea, dialog")) return;
+      if (externalControl || e.metaKey || e.ctrlKey || e.altKey || e.target.closest && e.target.closest("input, textarea, select, dialog")) return;
       // R swaps magazines whenever the AK is drawn, aimed or not: V fires it unaimed, so it empties unaimed.
       // Otherwise R stays the free camera's pitch.
       const cave = player();
@@ -1487,8 +1487,10 @@
         crew.releaseSwing(primaryButtonCave, true);
         primaryButtonCave = null;
       }
+      if(hud.setToolbelt) hud.setToolbelt(cave && cave.tools,
+        cave && cave.tools ? weapon.toolHolstered || weapon.equipped ? "holster" : cave.tools[cave.toolIndex].id : "",ready && !cave.health.stunned);
       const reload = secondaryReady && weapon.equipped && crew.canReload(cave);
-      hud.setPrimary(primaryReady, !!weapon && !weapon.equipped, primaryReady ? cave.parts.club.geometry : null,
+      hud.setPrimary(primaryReady, !!weapon && !weapon.equipped && !(cave.tools && weapon.toolHolstered), primaryReady ? cave.parts.club.geometry : null,
         weapon ? weapon.meleeCharge : 0, !!weapon && weapon.meleeHeld,
         weapon ? crew.meleePower(cave) : 1, !!weapon && weapon.aiming, cave ? cave.traits.name : "");
       hud.setWeapon(secondaryReady, !!weapon && weapon.equipped, weapon ? weapon.ammo : 0, !!weapon && weapon.reloading, reload, !!weapon && weapon.unlimited);
@@ -1522,8 +1524,16 @@
       const cave = player();
       if (!active || !cave || crew.sleeping) return false;
       resumePose();
+      if (action.startsWith("weapon-tool:")) {
+        const id=action.slice(12);
+        if(crew.selectTool(id,cave)) {
+          ads=false;syncAim();syncWeaponHud();
+          hud.hint(id==="holster" ? "Tools stowed · choose from your toolbelt to draw" : `${cave.tools[cave.toolIndex].label} equipped · use the melee control to strike`);
+        }
+        return true;
+      }
       if (action === "weapon-primary" || action === "weapon-primary-down") {
-        const alreadyHeld = !cave.weapon.equipped;
+        const alreadyHeld = cave.tools ? cave.weapon.primaryEquipped : !cave.weapon.equipped;
         if (!cave.weapon.primaryEquipped) {
           crew.selectWeapon(1, cave);
           syncAim();
@@ -1739,7 +1749,7 @@
       if (!crew.control(cave)) return;
       shoulderView = !crew.sleeping && !preserveHeight;
       carryExitMode = carryFocusRemaining = 0;
-      cave.weapon.aiming = !crew.sleeping && (controlModes.get(cave.traits.name) ?? true);
+      cave.weapon.aiming = !crew.sleeping && !cave.weapon.toolHolstered && (controlModes.get(cave.traits.name) ?? true);
       if (cave.weapon.aiming && !cave.weapon.equipped && !cave.weapon.primaryEquipped) crew.selectWeapon(cave.weapon.selectedSlot, cave);
       hud.setWeapon(false, false, 0);
       eyeMotionValid = false;

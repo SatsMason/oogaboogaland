@@ -28,7 +28,7 @@ export const writeCharacters = () => {
 export const readCharacters = () => {
   writeCharacters();
   const context = { window: {}, URLSearchParams, location: { search: "" } };
-  for (const name of ["math", "scene", "models", "characters", "characters.gen"]) {
+  for (const name of ["math", "scene", "models", "characters", "satsmason-art", "characters.gen"]) {
     runInNewContext(readFileSync(join(root, "src", "js", `${name}.js`), "utf8"), context);
   }
   return context.window.BL.characters.all();

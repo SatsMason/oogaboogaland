@@ -55,6 +55,10 @@ export const parseClientMessage = (text) => {
     if (Math.abs(x) > BOUND_XZ || Math.abs(z) > BOUND_XZ || y < BOUND_Y_MIN || y > BOUND_Y_MAX) return null;
     return { t: "pose", x: round(x), y: round(y), z: round(z), yaw: round(Math.atan2(Math.sin(yaw), Math.cos(yaw))) };
   }
+  if (msg.t === "equipment") {
+    return Number.isInteger(msg.tool) && msg.tool>=0 && msg.tool<16 && Number.isInteger(msg.slot) && msg.slot>=0 && msg.slot<=2
+      ? {t:"equipment",tool:msg.tool,slot:msg.slot} : null;
+  }
   if (msg.t === "body") {
     if (msg.name === null) return { t: "body", name: null };
     return typeof msg.name === "string" && BODY_NAME.test(msg.name) ? { t: "body", name: msg.name } : null;

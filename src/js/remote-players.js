@@ -78,6 +78,7 @@
       cave.root.position.y = entry.y + entry.baseY + Math.abs(Math.sin(entry.phase)) * 0.04;
       cave.root.position.z = entry.z;
       cave.root.rotation.y = entry.yaw;
+      if(cave.tools) BL.models.poseTools(cave,parts.club.visible);
     };
 
     const update = (dt) => {
@@ -103,6 +104,13 @@
         entry.z += entry.dz;
         entry.yaw += Math.atan2(Math.sin(rec.yaw - entry.yaw), Math.cos(rec.yaw - entry.yaw)) * t;
         if (far) entry.dx = entry.dz = 0;
+        if(entry.cave.tools) {
+          const cave=entry.cave,parts=cave.parts,index=Number.isInteger(rec.tool)&&cave.tools[rec.tool]?rec.tool:0;
+          if(cave.toolIndex!==index) BL.models.setTool(cave,index);
+          parts.club.visible=rec.slot!==0 && rec.slot!==2;
+          parts.club.rotation.x=cave.clubCarry.x;parts.club.rotation.z=cave.clubCarry.z;
+          parts.gun.visible=rec.slot===2;
+        }
         pose(entry, dt);
         const actor = actorPool[n++];
         actor.x = entry.x; actor.y = entry.y; actor.z = entry.z;

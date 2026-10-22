@@ -6588,7 +6588,10 @@
   const shareDrivenOoga = () => {
     const driven = crew.player;
     BL.net.setBody(driven ? driven.traits.name : null);
-    if (driven) BL.net.setZone(zoneName(playerCaveIndex));
+    if (driven) {
+      BL.net.setZone(zoneName(playerCaveIndex));
+      BL.net.sendEquipment(driven.toolIndex || 0,driven.weapon.equipped?2:driven.tools && driven.weapon.toolHolstered?0:1);
+    }
     if (driven) BL.net.sendPose(driven.root.position.x, driven.root.position.y - driven.baseY, driven.root.position.z, driven.root.rotation.y);
   };
   const drawExtra = (ctx2d, project, drawBubble) => {
