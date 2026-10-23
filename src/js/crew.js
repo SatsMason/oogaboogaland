@@ -481,7 +481,7 @@
         weapon = { equipped: false, ammo: AMMO_MAX };
         if (cave.tools) {
           const saved=game.toolFor?.(contributor.name),index=cave.tools.findIndex(tool=>tool.id===saved);
-          weapon.toolIndex=index>=0?index:0;weapon.toolHolstered=saved==="holster";
+          weapon.toolIndex=index>=0?index:0;weapon.toolHolstered=saved==="holster" || typeof saved==="string" && index<0;
         }
         world.weapons.set(contributor.name, weapon);
       }

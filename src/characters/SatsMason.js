@@ -3,7 +3,7 @@
   "use strict";
   const BL = window.BL;
   const ART = BL.satsMasonArt.body;
-  const EQUIPMENT = BL.satsMasonArt.equipment;
+  const EQUIPMENT = {...BL.satsMasonArt.equipment,...BL.satsMasonKit};
   const { moved, merge, lathe, tube } = BL.models;
   const { createNode, addChild } = BL.scene;
   // Decode once per character template; clones share the authored geometry.
@@ -19,43 +19,49 @@
     }
     return out;
   };
+  // Separate immutable topology for the wall cue; visible art keeps all detail.
+  const cueGeometry = (name, p = BL.satsMasonCues[name]) => {
+    if (!p) return null;
+    const q = new Uint16Array(bytes(p.v).buffer), indices = new Uint16Array(bytes(p.i).buffer);
+    const verts = new Array(q.length), faces = new Array(indices.length / 3);
+    for (let i = 0; i < q.length; i++) { const a = i % 3; verts[i] = p.min[a] + q[i] / 65535 * (p.max[a] - p.min[a]); }
+    for (let i = 0; i < faces.length; i++) faces[i] = { i: [indices[i*3],indices[i*3+1],indices[i*3+2]], color: [160,168,142], emissive: 0 };
+    return { verts, faces, lines: [] };
+  };
   const geometry = (name, source = ART.parts) => {
     const p = source[name], q = new Uint16Array(bytes(p.v).buffer), n = new Int8Array(bytes(p.n).buffer), c = bytes(p.c), e = bytes(p.e);
-    const verts = new Array(q.length), normals = new Array(n.length), faces = new Array(q.length / 9);
+    const indices = p.i ? new Uint16Array(bytes(p.i).buffer) : null;
+    const verts = new Array(q.length), normals = new Array(n.length), faces = new Array(c.length / 3);
     for (let i = 0; i < q.length; i++) { const axis = i % 3; verts[i] = p.min[axis] + q[i] / 65535 * (p.max[axis] - p.min[axis]); normals[i] = n[i] / 127; }
-    for (let i = 0; i < faces.length; i++) faces[i] = { i: [i*3,i*3+1,i*3+2], color: [c[i*3],c[i*3+1],c[i*3+2]], emissive: e[i] / 255 };
-    return { verts, normals, faces, lines: [] };
-  };
-  // Cross-sections give the ash bas a continuous, flat, curved silhouette.
-  const slab = (rows, depth, color, z = 0) => {
-    rows=rows.slice().sort((a,b)=>a[0]-b[0]);
-    const geo = { verts: [], faces: [], lines: [] }, rgb = BL.math.hexToRgb(color);
-    for (const [y,l,r] of rows) geo.verts.push(l,y,z-depth/2,r,y,z-depth/2,l,y,z+depth/2,r,y,z+depth/2);
-    const face = (i,c=rgb) => geo.faces.push({ i, color:c, emissive:0 });
-    for (let i=0;i<rows.length-1;i++) {
-      const a=i*4,b=a+4;
-      face([a+2,a+3,b+3,b+2]); face([a,b,b+1,a+1]);
-      face([a,a+2,b+2,b]); face([a+1,b+1,b+3,a+3]);
-    }
-    face([0,1,3,2]); const n=(rows.length-1)*4; face([n,n+2,n+3,n+1]);
-    return geo;
+    for (let i = 0; i < faces.length; i++) faces[i] = { i: indices ? [indices[i*3],indices[i*3+1],indices[i*3+2]] : [i*3,i*3+1,i*3+2], color: [c[i*3],c[i*3+1],c[i*3+2]], emissive: e[i] / 255 };
+    return { verts, normals, faces, lines: [], cueGeometry: cueGeometry(name,p.cue) };
   };
   const cord = (points,radius,color) => tube({ path(t) {
     const at=t*(points.length-1), i=Math.min(points.length-2,Math.floor(at)), f=at-i,a=points[i],b=points[i+1];
     return {x:a[0]+(b[0]-a[0])*f,y:a[1]+(b[1]-a[1])*f,z:a[2]+(b[2]-a[2])*f};
   }, radius:()=>radius, rings:points.length*3, segments:6, colorFn:()=>color });
-  const chisel = (point=false) => {
-    const pieces=[lathe({profile:[[0,-.068],[.020,-.068],[.025,-.062],[.026,-.05],[.018,-.037],[.016,.17],[.013,.20],[0,.21]],segments:8,color:"#525f61"}),
-      lathe({profile:[[0,-.069],[.019,-.069],[.025,-.062],[.025,-.056]],segments:16,color:"#aab0aa"})];
-    if(point) pieces.push(lathe({profile:[[.014,.17],[.011,.205],[.004,.255],[0,.275]],segments:8,color:"#a7b2b3"}));
-    else pieces.push(slab([[.17,-.015,.015],[.225,-.027,.027],[.26,-.029,.029]],.010,"#b3bdbb"));
-    const result=merge(...pieces);
-    // Restrained forging variation, worn striking cap and polished working edge.
-    for(let i=0;i<result.faces.length;i++) {
-      const f=result.faces[i],mix=.94+.09*Math.sin(i*13.3);
-      f.color=f.color.map(c=>Math.round(c*mix));
+  // Store only the exposed grip; the complete working tool is used when drawn.
+  const sheathedGrip = (geo, top) => {
+    const out = { verts: [], normals: [], faces: [], lines: [] }, hasNormals = !!geo.normals?.length;
+    for (const face of geo.faces) for (let fan = 1; fan + 1 < face.i.length; fan++) {
+      const polygon = [face.i[0],face.i[fan],face.i[fan+1]].map(i => [...geo.verts.slice(i*3,i*3+3),...(hasNormals ? geo.normals.slice(i*3,i*3+3) : [])]);
+      const clipped = [];
+      for (let i = 0; i < polygon.length; i++) {
+        const a = polygon[i], b = polygon[(i+1)%polygon.length];
+        if (a[1] <= top) clipped.push(a);
+        if ((a[1] <= top) !== (b[1] <= top)) {
+          const t = (top-a[1])/(b[1]-a[1]); clipped.push(a.map((v,k) => v+(b[k]-v)*t));
+        }
+      }
+      const base = out.verts.length/3;
+      for (const v of clipped) {
+        out.verts.push(v[0],v[1],v[2]);
+        if (hasNormals) { const length = Math.hypot(v[3],v[4],v[5]) || 1; out.normals.push(v[3]/length,v[4]/length,v[5]/length); }
+      }
+      for (let i = 1; i+1 < clipped.length; i++) out.faces.push({...face,i:[base,base+i,base+i+1]});
     }
-    return result;
+    if (!hasNormals) delete out.normals;
+    return out;
   };
   const sliotar = () => {
     const r=.036, profile=[];
@@ -79,6 +85,10 @@
         result.normals.push(result.verts[i]/n,result.verts[i+1]/n,result.verts[i+2]/n);
       } else result.normals.push(0,0,0);
     }
+    // Leather ribs/stitches do not need thousands of triangles in a hidden cue.
+    const silhouette = [];
+    for (let i = 0; i <= 8; i++) { const t = i * Math.PI / 8; silhouette.push([.0378*Math.sin(t),-.0378*Math.cos(t)]); }
+    result.cueGeometry = lathe({ profile: silhouette, segments: 12, color: "#a0a88e" });
     return result;
   };
   BL.characters.add({
@@ -107,9 +117,8 @@
         k.parts.head.position.x = p[0]; k.parts.head.position.y = p[1]; k.parts.head.position.z = p[2];
       },
       club: () => {
-        const tools=[{id:"hurley",label:"Hurley",geometry:geometry("hurley",EQUIPMENT)},{id:"hammer",label:"Thor-style hammer",geometry:geometry("hammer",EQUIPMENT)},
-          {id:"trowel",label:"Trowel",geometry:geometry("trowel",EQUIPMENT),carry:{x:1.65,z:.22}},{id:"chisel",label:"Flat chisel",geometry:chisel()},
-          {id:"point",label:"Point chisel",geometry:chisel(true)}];
+        const tools=[{id:"hurley",label:"Hurley",geometry:geometry("hurley",EQUIPMENT)},{id:"chisel",label:"Flat chisel",geometry:geometry("chisel",EQUIPMENT)},
+          {id:"trowel",label:"Trowel",geometry:geometry("trowel",EQUIPMENT),carry:{x:1.65,z:.22}},{id:"point",label:"Point chisel",geometry:geometry("point",EQUIPMENT)}];
         return {default:tools[0].geometry,gold:tools[0].geometry,tools,rest:{x:Math.PI-.12,z:.06},carry:{x:Math.PI-.16,z:.06}};
       },
       extras(k) {
@@ -117,25 +126,31 @@
         addChild(k.parts.torso,createNode({geometry:leather.bib}));
         k.parts.apronFlaps=leather.skirts.map((geo,i)=>{
           const x=k.parts[i===0?"legR":"legL"].position.x;
+          if (geo.cueGeometry) moved(geo.cueGeometry,-x,.24,-.35);
           return createNode({position:{x,y:-.24,z:.35},geometry:moved(geo,-x,.24,-.35)});
         });
         addChild(k.parts.torso,...k.parts.apronFlaps);
         const tools=k.tools;
-        k.parts.toolStowed=tools.map((tool,i)=>createNode({geometry:tool.geometry,
-          position:i===0?{x:-.21,y:-.27,z:-.46}:i===1?{x:-.49,y:-.47,z:.34}:i===2?{x:.25,y:.035,z:.40}:{x:i===3?-.21:-.11,y:-.02,z:.41},
-          rotation:i===0?{x:.06,y:0,z:-.40}:i===1?{x:.03,y:0,z:-.10}:{x:Math.PI,y:0,z:i===2?-.12:.03}}));
-        addChild(k.parts.torso,...k.parts.toolStowed);
-        const mount=[cord([[-.28,-.12,.39],[-.42,-.17,.40],[-.52,-.26,.37],[-.52,-.29,.31],[-.46,-.29,.30],[-.42,-.17,.40]],.012,"#60422f")];
+        k.parts.toolStowed=tools.map((tool,i)=> {
+          if (i===0) return createNode({geometry:tool.geometry,position:{x:-.21,y:-.27,z:-.46},rotation:{x:.06,y:0,z:-.40}});
+          const trowel = tool.id==="trowel", flap = k.parts.apronFlaps[trowel?1:0];
+          const x = trowel ? .22 : tool.id==="chisel" ? -.145 : -.055, y = -.205, z = trowel ? .43 : .425;
+          const node = createNode({geometry:sheathedGrip(tool.geometry,trowel ? .05 : .04),
+            position:{x:x-flap.position.x,y:y-flap.position.y,z:z-flap.position.z},rotation:{x:Math.PI,y:0,z:0}});
+          addChild(flap,node);
+          return node;
+        });
+        addChild(k.parts.torso,k.parts.toolStowed[0]);
+        // The hurley retains two quiet loops on the back; the front stays clear.
+        const mount=[];
         for(const t of [.16,.43]) {
           const x=-.21+Math.sin(.4)*t,y=-.27+Math.cos(.4)*t,z=-.46;
-          mount.push(cord([[x-.025,y+.022,z+.02],[x-.028,y-.022,z-.02],[x+.028,y-.022,z-.02],[x+.025,y+.022,z+.02]],.009,"#66432c"),
-            cord([[x,y,z+.02],[x,y+.01,z+.15]],.016,"#523722"));
+          mount.push(cord([[x-.025,y+.022,z+.02],[x-.028,y-.022,z-.02],[x+.028,y-.022,z-.02],[x+.025,y+.022,z+.02]],.009,"#66432c"));
         }
         addChild(k.parts.torso,createNode({geometry:merge(...mount)}));
         k.parts.ballHeld=createNode({geometry:sliotar(),position:{x:0,y:-.625*k.h,z:.15*k.h}});
         k.parts.ballStowed=createNode({geometry:k.parts.ballHeld.geometry,position:{x:.35,y:-.18,z:.40}});
         addChild(k.parts.armL,k.parts.ballHeld);addChild(k.parts.torso,k.parts.ballStowed);
-        addChild(k.parts.torso,createNode({geometry:cord([[.31,-.15,.39],[.32,-.215,.435],[.38,-.215,.435],[.39,-.15,.39]],.014,"#63452f")}));
       }
     }
   });
