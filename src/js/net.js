@@ -41,6 +41,7 @@
   let ws = null, retry = 0, retryTimer = 0, pingTimer = 0, hiddenTimer = 0, stopped = false;
   let npcFrame = null, inHub = false, hubSent = null;
   let zone = "outside", body = null, poseAt = 0, px = NaN, py = NaN, pz = NaN, pyaw = NaN;
+  let gearTool=0,gearSlot=1,gearSent="",gearAt=0;
   let clockOffset = 0, clockKnown = false;
   // A server timestamp minus the arrival time is the true offset less the trip; the largest such
   // sample is the one that travelled fastest, so it is the best estimate yet.
@@ -88,6 +89,7 @@
     rec.login = String(p.login);
     rec.display = String(p.display || p.login);
     rec.body = typeof p.body === "string" ? p.body : null;
+    rec.tool=Number.isInteger(p.tool)?p.tool:0;rec.slot=Number.isInteger(p.slot)?p.slot:1;
     rec.x = +p.x || 0; rec.y = +p.y || 0; rec.z = +p.z || 0; rec.yaw = +p.yaw || 0;
     remotes.set(p.id, rec);
   };
@@ -131,7 +133,7 @@
       hubSent = null;
       sendHub();
       BL.voice.restart();
-      poseAt = 0;
+      poseAt = 0;gearSent="";gearAt=0;
       px = NaN;
     } else if (msg.t === "join") {
       upsert(msg.p);
@@ -141,7 +143,10 @@
       setRoom("live");
     } else if (msg.t === "body") {
       const rec = remotes.get(msg.id);
-      if (rec) rec.body = typeof msg.name === "string" ? msg.name : null;
+      if (rec) {rec.body = typeof msg.name === "string" ? msg.name : null;rec.tool=0;rec.slot=1;}
+    } else if (msg.t === "equipment") {
+      const rec=remotes.get(msg.id);
+      if(rec && Number.isInteger(msg.tool) && msg.tool>=0 && msg.tool<16 && Number.isInteger(msg.slot) && msg.slot>=0 && msg.slot<=2) {rec.tool=msg.tool;rec.slot=msg.slot;}
     } else if (msg.t === "host") {
       state.hostId = Number.isSafeInteger(msg.id) ? msg.id : 0;
       state.followers = Number.isSafeInteger(msg.followers) ? msg.followers : 0;
@@ -283,8 +288,18 @@
 
   const setBody = (name) => {
     if (name === body) return;
-    body = name;
+    body = name;gearSent="";gearAt=0;
     sendBody();
+  };
+
+  // Equipment changes travel while standing still; no packets or allocations at rest.
+  const sendEquipment = (tool,slot) => {
+    gearTool=Number.isInteger(tool)&&tool>=0&&tool<16?tool:0;
+    gearSlot=Number.isInteger(slot)&&slot>=0&&slot<=2?slot:1;
+    const code=gearTool*3+gearSlot,now=performance.now();
+    if(state.room!=="live" || !body || code===gearSent || now-gearAt<POSE_MS) return;
+    gearSent=code;gearAt=now;
+    send(JSON.stringify({t:"equipment",tool:gearTool,slot:gearSlot}));
   };
 
   // Throttled to POSE_MS and skipped while nothing moved, so a standing Ooga costs nothing.
@@ -337,5 +352,5 @@
     close("off");
   };
 
-  BL.net = { start, subscribe, dispose, login, logout, rejoin, setBody, setZone, setHub, sendNpc, sendPose, mayDrive, ownCharacter, serverNow, remotes, state, get npcFrame() { return npcFrame; } };
+  BL.net = { start, subscribe, dispose, login, logout, rejoin, setBody, setZone, setHub, sendNpc, sendPose, sendEquipment, mayDrive, ownCharacter, serverNow, remotes, state, get npcFrame() { return npcFrame; } };
 })();

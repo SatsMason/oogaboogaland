@@ -200,6 +200,7 @@
       modeDestinations: $("detached-destinations"),
       modeDestinationName: $("detached-destination-name"),
       modeDestinationDots: [...document.querySelectorAll("[data-detached-preset]")],
+      toolbelt: $("toolbelt-hud"), toolSelect: $("toolbelt-select"),
       primary: $("primary-hud"),
       primaryIcon: $("primary-icon"),
       primaryStrength: $("primary-strength"),
@@ -513,6 +514,21 @@
       }
     };
     setDetachedView(detachedPreset);
+    let toolList=null;
+    const setToolbelt = (tools, selected, available) => {
+      el.toolbelt.hidden=!tools || !!gorillaEntry;
+      el.toolSelect.disabled=!available;
+      if(tools!==toolList) {
+        toolList=tools;
+        el.toolSelect.replaceChildren();
+        if(tools) for(const tool of [...tools,{id:"holster",label:"Holster all"}]) {
+          const option=document.createElement("option"); option.value=tool.id;option.textContent=tool.label;el.toolSelect.append(option);
+        }
+      }
+      if(tools && el.toolSelect.value!==selected) el.toolSelect.value=selected;
+    };
+    on(el.toolSelect,"keydown",(event)=>event.stopPropagation());
+    on(el.toolSelect,"change",()=>{if(actionHandler)actionHandler(`weapon-tool:${el.toolSelect.value}`);el.toolSelect.blur();});
     let primaryShown = false, primarySelected = false, primaryAiming = false, primaryHeld = false, primaryPower = 100;
     let primaryGeometry = null, primaryPointer = -1, primaryKey = "";
     const finishPrimary = (cancel) => {
@@ -1676,6 +1692,7 @@
       setOwnOoga(null);
       setGorilla(null);
       setMode(null, false, "detached", false);
+      setToolbelt(null,"",false);
       setPrimary(false, false, null);
       primaryGeometry = null;
       el.primaryIcon.width = ICON_PX;
@@ -1689,7 +1706,7 @@
       el.board.classList.remove("board-floating");
       el.board.removeAttribute("style");
     };
-    return { el, openFeed, closeFeed, openRecipe, closeRecipe, dismissOutside, openBoard, closeBoard, updateBoard, restoreBoards, setRosterRow, setMeter, setStats, setAct, setMode, setOwnOoga, setGorilla, setGorillaSmashPower, setDetachedView, fadeDetachedName, setAreaLabel, setPrimary, setWeapon, setMagazine, setJetpack, setSubtitle, onAction, toast, tooltip, hint, hideHint, letterSign, selectTab, onPreset, onIdentityChange, setIdentity, setDonationUrl, onAssign, onUnassign, renderInventory, dispose };
+    return { el, openFeed, closeFeed, openRecipe, closeRecipe, dismissOutside, openBoard, closeBoard, updateBoard, restoreBoards, setRosterRow, setMeter, setStats, setAct, setMode, setOwnOoga, setGorilla, setGorillaSmashPower, setDetachedView, fadeDetachedName, setAreaLabel, setToolbelt, setPrimary, setWeapon, setMagazine, setJetpack, setSubtitle, onAction, toast, tooltip, hint, hideHint, letterSign, selectTab, onPreset, onIdentityChange, setIdentity, setDonationUrl, onAssign, onUnassign, renderInventory, dispose };
   };
   // The account line in the sheet's foot is page-level: shown only when a backend answered, and
   // the director hands every change of `BL.net.state` here, whichever scene is active.

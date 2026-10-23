@@ -74,14 +74,17 @@ export const launch = async ({ w = 1440, h = 900, mobile = false, perf = false, 
     ...(perf ? [] : SPEED_FLAGS),
     "about:blank"
   ];
-  const chrome = spawn(CHROME, args, { stdio: "ignore" });
+  const chrome = spawn(CHROME, args, { stdio: ["ignore", "ignore", "pipe"] });
+  let startupError = "", exitDetail = "";
+  chrome.stderr.on("data", chunk => { startupError = (startupError + chunk.toString()).slice(-2000); });
   const state = { alive: true, pooled: false, key: keyOf({ w, h, mobile, perf, motion }) };
-  chrome.on("exit", () => {
+  chrome.on("exit", (code, signal) => {
+    exitDetail = signal || String(code);
     state.alive = false;
   });
   const logs = [];
   let targets = null;
-  for (let i = 0; i < 500 && !targets; i++) {
+  for (let i = 0; i < 500 && !targets && state.alive; i++) {
     await sleep(20);
     try {
       const port = parseInt(readFileSync(join(profile, "DevToolsActivePort"), "utf8"), 10);
@@ -93,7 +96,7 @@ export const launch = async ({ w = 1440, h = 900, mobile = false, perf = false, 
   if (!targets) {
     chrome.kill("SIGKILL");
     removeProfile(profile);
-    throw driverError(`Chrome did not start at ${CHROME}`);
+    throw driverError(`Chrome did not start at ${CHROME}${exitDetail ? ` (exit ${exitDetail})` : ""}${startupError ? `: ${startupError.trim()}` : ""}`);
   }
   const page = targets.find((t) => t.type === "page");
   // Chrome can refuse or drop the first socket while starting: retry, and never wait on a failed socket.

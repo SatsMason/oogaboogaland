@@ -53,15 +53,15 @@ export class Room extends DurableObject {
   }
 
   record(ws, a) {
-    return { ws, voice: { pub: null, sub: null, track: null }, zone: OUTSIDE, inHub: false, joinedAt: Date.now(), ...a, bucket: { tokens: MOVE_HZ, at: Date.now() }, npcBucket: { tokens: NPC_HZ, at: Date.now() }, seenAt: Date.now() };
+    return { ws, voice: { pub: null, sub: null, track: null }, tool: 0, slot: 1, zone: OUTSIDE, inHub: false, joinedAt: Date.now(), ...a, bucket: { tokens: MOVE_HZ, at: Date.now() }, gearBucket: { tokens: 10, at: Date.now() }, npcBucket: { tokens: NPC_HZ, at: Date.now() }, seenAt: Date.now() };
   }
 
   attachment(p) {
-    return { id: p.id, login: p.login, display: p.display, contributor: p.contributor, body: p.body, x: p.x, y: p.y, z: p.z, yaw: p.yaw, voice: p.voice, zone: p.zone, inHub: p.inHub, joinedAt: p.joinedAt };
+    return { id: p.id, login: p.login, display: p.display, contributor: p.contributor, body: p.body, x: p.x, y: p.y, z: p.z, yaw: p.yaw, tool: p.tool, slot: p.slot, voice: p.voice, zone: p.zone, inHub: p.inHub, joinedAt: p.joinedAt };
   }
 
   view(p) {
-    return { id: p.id, login: p.login, display: p.display, body: p.body, x: p.x, y: p.y, z: p.z, yaw: p.yaw };
+    return { id: p.id, login: p.login, display: p.display, body: p.body, x: p.x, y: p.y, z: p.z, yaw: p.yaw, tool: p.tool, slot: p.slot };
   }
 
   send(ws, msg) {
@@ -139,6 +139,10 @@ export class Room extends DurableObject {
       p.x = msg.x; p.y = msg.y; p.z = msg.z; p.yaw = msg.yaw;
       this.dirty = true;
       this.scheduleFlush();
+    } else if (msg.t === "equipment") {
+      if (!p.body || !takeToken(p.gearBucket,10,p.seenAt) || p.tool===msg.tool && p.slot===msg.slot) return;
+      p.tool=msg.tool;p.slot=msg.slot;
+      this.broadcast({t:"equipment",id:p.id,tool:p.tool,slot:p.slot});
     } else if (msg.t === "hub") {
       if (msg.on === p.inHub) return;
       p.inHub = msg.on;
@@ -159,6 +163,7 @@ export class Room extends DurableObject {
       } else {
         p.body = msg.name;
       }
+      p.tool=0;p.slot=1;
       this.broadcast({ t: "body", id: p.id, name: p.body });
       this.updateVoice();
     }
